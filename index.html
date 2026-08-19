@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Coin Rush: Survivor</title>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body { background-color: #0f1016; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+    #app { display: flex; flex-direction: column; height: 100vh; max-width: 480px; margin: 0 auto; background: #181a24; position: relative; }
+    
+    /* Top Bar Stats */
+    .top-bar { display: flex; justify-content: space-between; align-items: center; background: #222533; padding: 10px 15px; border-bottom: 2px solid #2e3247; font-weight: bold; font-size: 14px; }
+    .stat-item { display: flex; align-items: center; gap: 5px; background: #12131a; padding: 5px 10px; border-radius: 20px; border: 1px solid #33384d; }
+    
+    /* Screen Area */
+    .content-area { flex: 1; position: relative; overflow-y: auto; }
+    .screen-page { display: none; height: 100%; flex-direction: column; align-items: center; padding: 20px; box-sizing: border-box; }
+    .screen-page.active { display: flex; }
+    
+    /* Lobby Elements */
+    .stage-title { font-size: 28px; font-weight: 900; letter-spacing: 2px; color: #f39c12; margin-top: 20px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+    .hero-avatar { width: 140px; height: 140px; background: #2a2e42; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 60px; border: 4px solid #f1c40f; margin: 40px 0; box-shadow: 0 0 20px rgba(241, 196, 15, 0.3); }
+    .play-btn { width: 80%; padding: 18px; background: linear-gradient(180deg, #f39c12 0%, #d35400 100%); border: none; border-radius: 16px; color: #fff; font-size: 24px; font-weight: 800; cursor: pointer; border-bottom: 5px solid #a04000; box-shadow: 0 5px 15px rgba(243, 156, 18, 0.4); }
+    .play-btn:active { transform: translateY(3px); border-bottom: 2px solid #a04000; }
+    
+    /* Equipment & Cards Grid */
+    .equip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; margin-top: 15px; }
+    .equip-slot { background: #25293a; border: 2px dashed #424866; border-radius: 12px; aspect-ratio: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 24px; }
+    .equip-slot.filled { border: 2px solid #2ecc71; background: #1e382b; }
+    
+    .card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; margin-top: 10px; }
+    .card-item { background: #25293a; border-radius: 10px; padding: 12px; border: 1px solid #3d4361; text-align: center; }
+    .card-item h4 { color: #f1c40f; font-size: 14px; margin-bottom: 4px; }
+    .card-item p { font-size: 11px; color: #a0a5ba; }
+
+    /* Action Buttons */
+    .draw-btn { background: #9b59b6; border: none; color: white; padding: 12px 20px; font-weight: bold; border-radius: 8px; margin-top: 15px; width: 100%; border-bottom: 3px solid #6c3483; }
+
+    /* Bottom Navigation */
+    .nav-bar { display: flex; justify-content: space-around; background: #12131a; padding: 12px 0; border-top: 2px solid #222533; }
+    .nav-btn { background: none; border: none; color: #6c757d; font-size: 11px; font-weight: bold; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 20%; cursor: pointer; }
+    .nav-btn.active { color: #f39c12; }
+    .nav-btn .icon { font-size: 20px; }
+
+    /* Phaser Overlay */
+    #phaser-game { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; display: none; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Top Stats -->
+  <div class="top-bar">
+    <div class="stat-item">⚡ <span id="energy">30/30</span></div>
+    <div class="stat-item">🪙 <span id="coins">1000</span></div>
+    <div class="stat-item">💎 <span id="gems">50</span></div>
+  </div>
+
+  <!-- Screens -->
+  <div class="content-area">
+    <!-- Lobby Screen -->
+    <div id="screen-lobby" class="screen-page active">
+      <div class="stage-title">STAGE 001</div>
+      <div class="hero-avatar">🥷</div>
+      <button class="play-btn" onclick="startGameplay()">BATTLE</button>
+    </div>
+
+    <!-- Shop Screen -->
+    <div id="screen-shop" class="screen-page">
+      <h3>GEAR & CARDS SHOP</h3>
+      <div class="equip-slot" style="width: 100%; height: 120px; margin-top:20px;">🎁 Rare Chest</div>
+      <button class="draw-btn" onclick="drawGacha()">DRAW X10 (100 Coins)</button>
+    </div>
+
+    <!-- Equipment Screen -->
+    <div id="screen-equip" class="screen-page">
+      <h3>EQUIPMENT</h3>
+      <p style="font-size: 12px; color: #888; margin-top: 4px;">ATK: <b style="color:#e74c3c;">150</b> | HP: <b style="color:#2ecc71;">500</b></p>
+      <div class="equip-grid">
+        <div class="equip-slot filled">🪖<span style="font-size:10px;">Lvl 1</span></div>
+        <div class="equip-slot filled">🛡️<span style="font-size:10px;">Lvl 1</span></div>
+        <div class="equip-slot filled">⚔️<span style="font-size:10px;">Lvl 1</span></div>
+        <div class="equip-slot">💍</div>
+        <div class="equip-slot">🥾</div>
+        <div class="equip-slot">📜</div>
+      </div>
+    </div>
+
+    <!-- Collection Screen -->
+    <div id="screen-cards" class="screen-page">
+      <h3>PASSIVE CARDS</h3>
+      <div class="card-grid" id="cards-container">
+        <div class="card-item"><h4>Attack Up</h4><p>ATK +10%</p></div>
+        <div class="card-item"><h4>Move Speed</h4><p>Speed +5%</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phaser Game Overlay Scene -->
+  <div id="phaser-game"></div>
+
+  <!-- Bottom Nav -->
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="tabSwitch('shop', this)"><span class="icon">🛒</span>Shop</button>
+    <button class="nav-btn" onclick="tabSwitch('equip', this)"><span class="icon">🛡️</span>Equip</button>
+    <button class="nav-btn active" onclick="tabSwitch('lobby', this)"><span class="icon">⚔️</span>Lobby</button>
+    <button class="nav-btn" onclick="tabSwitch('cards', this)"><span class="icon">🃏</span>Cards</button>
+  </div>
+</div>
+
+<script>
+  let coins = 1000;
+  
+  function tabSwitch(screenName, btn) {
+    document.querySelectorAll('.screen-page').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`screen-${screenName}`).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  function drawGacha() {
+    if(coins >= 100) {
+      coins -= 100;
+      document.getElementById('coins').innerText = coins;
+      const cards = ['Crit Dmg Up', 'EXP Radius', 'HP Recover', 'Gold Gain'];
+      const picked = cards[Math.floor(Math.random() * cards.length)];
+      
+      const newCard = document.createElement('div');
+      newCard.className = 'card-item';
+      newCard.innerHTML = `<h4>${picked}</h4><p>Level 1 Active</p>`;
+      document.getElementById('cards-container').appendChild(newCard);
+      alert(`🎉 You unlocked: ${picked}!`);
+    } else {
+      alert("Not enough coins!");
+    }
+  }
+
+  /* --- Phaser 2D Game Logic --- */
+  let game;
+  function startGameplay() {
+    document.getElementById('phaser-game').style.display = 'block';
+    
+    const config = {
+      type: Phaser.AUTO,
+      width: window.innerWidth > 480 ? 480 : window.innerWidth,
+      height: window.innerHeight,
+      parent: 'phaser-game',
+      physics: { default: 'arcade', arcade: { debug: false } },
+      scene: { preload: preload, create: create, update: update }
+    };
+
+    game = new Phaser.Game(config);
+  }
+
+  let player, enemies, bullets, lastFired = 0;
+
+  function preload() {}
+
+  function create() {
+    const scene = this;
+    
+    // Player
+    player = scene.add.circle(configWidth()/2, configHeight()/2, 15, 0xf1c40f);
+    scene.physics.add.existing(player);
+    player.body.setCollideWorldBounds(true);
+
+    // Controls - Touch/Mouse Move
+    scene.input.on('pointermove', (pointer) => {
+      scene.physics.moveTo(player, pointer.x, pointer.y, 200);
+    });
+
+    // Enemies & Bullets Group
+    enemies = scene.physics.add.group();
+    bullets = scene.physics.add.group();
+
+    // Spawn Enemies
+    scene.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        let x = Phaser.Math.Between(0, configWidth());
+        let enemy = scene.add.circle(x, 0, 12, 0xe74c3c);
+        scene.physics.add.existing(enemy);
+        enemies.add(enemy);
+        scene.physics.moveToObject(enemy, player, 80);
+      },
+      loop: true
+    });
+
+    // Bullet-Enemy Collision
+    scene.physics.add.overlap(bullets, enemies, (bullet, enemy) => {
+      bullet.destroy();
+      enemy.destroy();
+      coins += 10;
+      document.getElementById('coins').innerText = coins;
+    });
+
+    // Exit Game Button
+    let exitBtn = scene.add.text(20, 20, '❌ Exit', { fill: '#fff', fontSize: '18px', backgroundColor: '#000' }).setInteractive();
+    exitBtn.on('pointerdown', () => {
+      game.destroy(true);
+      document.getElementById('phaser-game').style.display = 'none';
+    });
+  }
+
+  function update(time) {
+    if(!player || !player.body) return;
+    
+    // Auto Fire Nearest Enemy
+    if (time > lastFired) {
+      let enemy = enemies.getFirstAlive();
+      if (enemy) {
+        let bullet = this.add.circle(player.x, player.y, 5, 0xffffff);
+        this.physics.add.existing(bullet);
+        bullets.add(bullet);
+        this.physics.moveToObject(bullet, enemy, 400);
+        lastFired = time + 300;
+      }
+    }
+  }
+
+  function configWidth() { return window.innerWidth > 480 ? 480 : window.innerWidth; }
+  function configHeight() { return window.innerHeight; }
+</script>
+
+</body>
+  </html>
+  
